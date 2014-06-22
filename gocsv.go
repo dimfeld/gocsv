@@ -2,6 +2,7 @@ package gocsv
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
 )
 
@@ -12,6 +13,13 @@ type Reader struct {
 	*csv.Reader
 	FieldIndex map[string]int
 	Field      []string
+}
+
+type Writer struct {
+	*csv.Writer
+	AllowUnknown bool
+	FieldIndex   map[string]int
+	Field        []string
 }
 
 type Record map[string]string
@@ -67,8 +75,40 @@ func (c *Reader) ReadHeader() error {
 func NewReader(r io.Reader) (c *Reader, err error) {
 	c = &Reader{Reader: csv.NewReader(r)}
 	err = c.ReadHeader()
-	if err != nil {
-		return
-	}
 	return
+}
+
+func NewWriter(w io.Writer, fields []string) *Writer {
+	writer := &Writer{
+		Writer:     csv.NewWriter(w),
+		Field:      fields,
+		FieldIndex: map[string]int{},
+	}
+
+	for i, f := range fields {
+		writer.FieldIndex[f] = i
+	}
+
+	return writer
+}
+
+func (w *Writer) Write(values Record) error {
+	record := make([]string, len(w.Field))
+	for key, value := range values {
+		pos, ok := w.FieldIndex[key]
+		if !ok {
+			if !w.AllowUnknown {
+				return fmt.Errorf("Unknown field %s", key)
+			}
+			continue
+		}
+
+		record[pos] = value
+	}
+
+	return w.Writer.Write(record)
+}
+
+func (w *Writer) WriteHeader() error {
+	return w.Writer.Write(w.Field)
 }

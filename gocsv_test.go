@@ -90,3 +90,71 @@ func TestError(t *testing.T) {
 		t.Errorf("Expected error from ReadAll with too-long line")
 	}
 }
+
+func TestWrite(t *testing.T) {
+	buf := &bytes.Buffer{}
+	w := NewWriter(buf, []string{"a", "b", "c"})
+
+	err := w.Write(Record{"a": "1", "b": "2", "c": "3"})
+	w.Flush()
+	expected := "1,2,3\n"
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	if string(buf.Bytes()) != expected {
+		t.Errorf("Expected %s, saw %s", expected, string(buf.Bytes()))
+	}
+	buf.Reset()
+
+	err = w.Write(Record{"a": "1", "b": "2", "c": "3"})
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	err = w.Write(Record{"a": "2", "b": "3", "c": "4"})
+	w.Flush()
+	expected = "1,2,3\n2,3,4\n"
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	if string(buf.Bytes()) != expected {
+		t.Errorf("Expected %s, saw %s", expected, string(buf.Bytes()))
+	}
+	buf.Reset()
+
+	err = w.WriteHeader()
+	w.Flush()
+	expected = "a,b,c\n"
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	if string(buf.Bytes()) != expected {
+		t.Errorf("Expected %s, saw %s", expected, string(buf.Bytes()))
+	}
+	buf.Reset()
+
+	err = w.Write(Record{"a": "2", "b": "3", "d": "4"})
+	if err == nil {
+		t.Error("Expected error on unknown field")
+	}
+	w.Flush()
+	if buf.Len() != 0 {
+		t.Error("Write with unknown field still wrote data:",
+			string(buf.Bytes()))
+	}
+	buf.Reset()
+
+	w.AllowUnknown = true
+	err = w.Write(Record{"a": "1", "b": "2", "d": "3"})
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	err = w.Write(Record{"a": "2", "b": "3", "c": "4"})
+	w.Flush()
+	expected = "1,2,\"\"\n2,3,4\n"
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	if string(buf.Bytes()) != expected {
+		t.Errorf("Expected %s, saw %s", expected, string(buf.Bytes()))
+	}
+}
