@@ -6,28 +6,61 @@ import (
 	"testing"
 )
 
-var testFile = `a,b,c
-1,2,3
-4,5,6
+var testFile = `a,b ,c 
+1,2 ,3
+4,5,6 
 `
 
-var expectedField = []string{"a", "b", "c"}
+var expectedField = []string{"a", "b ", "c "}
 
 var expectedRecords = []Record{
-	Record{"a": "1", "b": "2", "c": "3"},
-	Record{"a": "4", "b": "5", "c": "6"},
+	Record{"a": "1", "b ": "2 ", "c ": "3"},
+	Record{"a": "4", "b ": "5", "c ": "6 "},
 }
 
 var errorFile = `a,b,c
 3,4,5,6
 3,4,5`
 
+func getExpectedData(trimTrailing bool) (fields []string, records []Record) {
+	if !trimTrailing {
+		return expectedField, expectedRecords
+	}
+
+	fields = make([]string, len(expectedField))
+	for i, field := range expectedField {
+		fields[i] = string(bytes.TrimRight([]byte(field), " "))
+	}
+
+	records = make([]Record, len(expectedRecords))
+	for i, expectedRecord := range expectedRecords {
+		record := make(Record)
+
+		for field, value := range expectedRecord {
+			trimmedField := string(bytes.TrimRight([]byte(field), " "))
+			trimmedValue := string(bytes.TrimRight([]byte(value), " "))
+			record[trimmedField] = trimmedValue
+		}
+		records[i] = record
+	}
+
+	return
+}
+
 func TestRead(t *testing.T) {
+	testRead(t, false)
+	testRead(t, true)
+}
+
+func testRead(t *testing.T, trimTrailing bool) {
+	t.Log("Testing with trimTrailing", trimTrailing)
 	reader := bytes.NewBufferString(testFile)
-	csv, err := NewReader(reader)
+	csv, err := NewTrimmingReader(reader, false, trimTrailing)
 	if err != nil {
 		t.Fatalf("Failed to create reader: %s", err)
 	}
+
+	expectedField, expectedRecords := getExpectedData(trimTrailing)
 
 	if !reflect.DeepEqual(csv.Field, expectedField) {
 		t.Fatalf("Expected header %v, saw %v", expectedField, csv.Field)
@@ -47,11 +80,19 @@ func TestRead(t *testing.T) {
 }
 
 func TestReadAll(t *testing.T) {
+	testReadAll(t, false)
+	testReadAll(t, true)
+}
+
+func testReadAll(t *testing.T, trimTrailing bool) {
+	t.Log("Testing with trimTrailing", trimTrailing)
 	reader := bytes.NewBufferString(testFile)
-	csv, err := NewReader(reader)
+	csv, err := NewTrimmingReader(reader, false, trimTrailing)
 	if err != nil {
 		t.Fatalf("Failed to create reader: %s", err)
 	}
+
+	expectedField, expectedRecords := getExpectedData(trimTrailing)
 
 	if !reflect.DeepEqual(csv.Field, expectedField) {
 		t.Fatalf("Expected header %v, saw %v", expectedField, csv.Field)

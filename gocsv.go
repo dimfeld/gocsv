@@ -1,6 +1,7 @@
 package gocsv
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -11,8 +12,9 @@ import (
 // ReadHeader().
 type Reader struct {
 	*csv.Reader
-	FieldIndex map[string]int
-	Field      []string
+	TrimTrailingSpace bool
+	FieldIndex        map[string]int
+	Field             []string
 }
 
 type Writer struct {
@@ -30,7 +32,11 @@ func (c *Reader) makeRecord(values []string) Record {
 		if i > len(values) {
 			break
 		}
-		record[field] = values[i]
+		val := values[i]
+		if c.TrimTrailingSpace {
+			val = string(bytes.TrimRight([]byte(val), " "))
+		}
+		record[field] = val
 	}
 	return record
 }
@@ -62,6 +68,11 @@ func (c *Reader) ReadHeader() error {
 	}
 
 	c.Field = header
+	if c.TrimTrailingSpace {
+		for i, field := range c.Field {
+			c.Field[i] = string(bytes.TrimRight([]byte(field), " "))
+		}
+	}
 	c.FieldIndex = make(map[string]int, len(c.Field))
 	for i, field := range header {
 		c.FieldIndex[field] = i
@@ -70,12 +81,18 @@ func (c *Reader) ReadHeader() error {
 	return nil
 }
 
+func NewTrimmingReader(r io.Reader, trimLeading bool, trimTrailing bool) (c *Reader, err error) {
+	c = &Reader{Reader: csv.NewReader(r)}
+	c.TrimLeadingSpace = trimLeading
+	c.TrimTrailingSpace = trimTrailing
+	err = c.ReadHeader()
+	return
+}
+
 // NewReader constructs a Reader object, reading the first line from the
 // supplied io.Reader and interpreting it as a header line.
 func NewReader(r io.Reader) (c *Reader, err error) {
-	c = &Reader{Reader: csv.NewReader(r)}
-	err = c.ReadHeader()
-	return
+	return NewTrimmingReader(r, false, false)
 }
 
 func NewWriter(w io.Writer, fields []string) *Writer {
